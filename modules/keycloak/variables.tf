@@ -93,3 +93,20 @@ variable "my_app_admin_password" {
   description = "The password for the my_app admin."
   type        = string
 }
+
+variable "my_app_client_id" {
+  description = "Client ID for My App"
+}
+
+variable "my_app_client_secret" {
+  description = "Secret for My App Client"
+  sensitive   = true
+}
+
+variable "app_base_url" {
+  description = "Base URL of the application"
+}
+
+variable "my_app_client_id_name" {
+  description = "Client Id name for Mya App Client"
+}

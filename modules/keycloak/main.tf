@@ -15,7 +15,7 @@ provider "keycloak" {
   realm     = var.keycloak_realm
 }
 
-# Create a permanent admin in the master realm
+# Create the user only if it doesn't already exist
 resource "keycloak_user" "master_admin_user" {
   realm_id   = "master"
   username   = var.master_admin_username
@@ -45,7 +45,7 @@ data "keycloak_role" "master_admin_role" {
 # Assign the "admin" role to the master admin user
 resource "keycloak_user_roles" "master_admin_user_roles" {
   realm_id = "master"
-  user_id  = keycloak_user.master_admin_user.id
+  user_id = keycloak_user.master_admin_user.id
   role_ids = [data.keycloak_role.master_admin_role.id]
 }
 
@@ -87,7 +87,7 @@ resource "keycloak_realm" "realm" {
 
 # Create a new user for the my_app realm
 resource "keycloak_user" "admin_user" {
-  realm_id   = keycloak_realm.realm.id
+  realm_id = keycloak_realm.realm.id
   username   = "my_app_admin"
   first_name = var.my_app_admin_first_name
   last_name  = var.my_app_admin_last_name
@@ -103,7 +103,7 @@ resource "keycloak_user" "admin_user" {
 
 # Use a data source to get the existing realm-management client
 data "keycloak_openid_client" "realm_management" {
-  realm_id  = keycloak_realm.realm.id
+  realm_id = keycloak_realm.realm.id
   client_id = "realm-management"
 }
 
@@ -115,7 +115,7 @@ data "keycloak_role" "manage_users" {
 }
 
 data "keycloak_role" "manage_realm" {
-  realm_id  = keycloak_realm.realm.id
+  realm_id = keycloak_realm.realm.id
   client_id = data.keycloak_openid_client.realm_management.id
   name      = "manage-realm"
 }
@@ -128,4 +128,43 @@ resource "keycloak_user_roles" "my_app_admin_user_realm_roles" {
     data.keycloak_role.manage_users.id,
     data.keycloak_role.manage_realm.id,
   ]
+}
+
+# Create an OpenID client
+resource "keycloak_openid_client" "my_app_openid_client" {
+  realm_id = keycloak_realm.realm.id
+  client_id             = var.my_app_client_id
+  name                  = var.my_app_client_id_name
+  enabled               = true
+  standard_flow_enabled = true
+  implicit_flow_enabled = false
+  direct_access_grants_enabled = true
+  service_accounts_enabled = true
+  access_type           = "CONFIDENTIAL"
+  valid_redirect_uris   = ["${var.app_base_url}/accounts/keycloak/login/callback/"]
+  web_origins           = ["+"]
+  login_theme           = "keycloak"
+  client_secret         = var.my_app_client_secret
+}
+
+# Create a role for the OpenID client
+resource "keycloak_role" "my_app_open_id_client_role" {
+  realm_id = keycloak_realm.realm.id
+  client_id   = keycloak_openid_client.my_app_openid_client.id
+  name        = "my_app_openid_client_role"
+  description = "A role that my_app_openid_client_role provides"
+}
+
+# Retrieve the service account user for the OpenID client
+data "keycloak_openid_client_service_account_user" "my_app_service_account_user" {
+  realm_id = keycloak_realm.realm.id
+  client_id = keycloak_openid_client.my_app_openid_client.id
+}
+
+# Assign the role to the OpenID client's service account
+resource "keycloak_openid_client_service_account_role" "client_service_account_role" {
+  realm_id = keycloak_realm.realm.id
+  client_id               = keycloak_openid_client.my_app_openid_client.id
+  role                    = keycloak_role.my_app_open_id_client_role.name
+  service_account_user_id = data.keycloak_openid_client_service_account_user.my_app_service_account_user.id
 }
